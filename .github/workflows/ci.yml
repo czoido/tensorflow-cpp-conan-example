@@ -23,12 +23,6 @@ jobs:
         with:
           path: /home/conan
 
-      - name: Cache Conan packages
-        uses: actions/cache@v3
-        with:
-          key: conan-cache
-          path: /home/conan/.conan
-
       - name: Configure Conan
         run: |
           pip install "conan<2.0" --upgrade
