@@ -25,7 +25,7 @@ jobs:
 
       - name: Configure Conan
         run: |
-          pip install conan
+          pip install conan --upgrade
           conan --version
           conan profile detect          
           conan remote add default-conan-local https://carloszoido.jfrog.io/artifactory/api/conan/default-conan-local
