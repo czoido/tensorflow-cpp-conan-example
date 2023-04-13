@@ -1,7 +1,7 @@
 on: [push, pull_request, workflow_dispatch]
 
 env:
-  CONAN_USER_HOME: /home/conan
+  CONAN_HOME: /home/conan
 
 defaults:
   run:
@@ -13,9 +13,7 @@ jobs:
     container:
       image: conanio/gcc11-ubuntu18.04
     env:
-      CONAN_USER_HOME: /home/conan
-      CONAN_SYSREQUIRES_MODE: enabled
-      CONAN_PRINT_RUN_COMMANDS: 1
+      CONAN_HOME: /home/conan
     steps:
 
       - name: Check out repository code
