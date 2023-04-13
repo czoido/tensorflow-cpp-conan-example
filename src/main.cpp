@@ -32,8 +32,9 @@ std::vector<std::string> read_labels(std::string labels_file) {
 }
 
 int main(int argc, char * argv[]) {
-    std::string model_file = (argc<4) ? "mobilenet_v1_1.0_224_quant.tflite" : std::string(argv[1]);
-    std::string labels_file = (argc<4) ? "labels_mobilenet_quant_v1_224.txt" : std::string(argv[2]);
+    // tflite model comes from: https://tfhub.dev/
+    std::string model_file = (argc<4) ? "lite-model_imagenet_mobilenet_v3_large_100_224_classification_5_metadata_1.tflite" : std::string(argv[1]);
+    std::string labels_file = (argc<4) ? "lite-model_imagenet_mobilenet_v3_large_100_224_classification_5_metadata_1.txt" : std::string(argv[2]);
     std::string image_file = (argc<4) ? "frog.png" : std::string(argv[3]);
     bool show_image = (argc==5 && std::string(argv[4])=="0") ? false : true;
 
@@ -51,7 +52,7 @@ int main(int argc, char * argv[]) {
         throw std::runtime_error("Failed to allocate tensors");
     }
 
-    //tflite::PrintInterpreterState(interpreter.get());
+    tflite::PrintInterpreterState(interpreter.get());
 
     auto input = interpreter->inputs()[0];
     auto input_height = interpreter->tensor(input)->dims->data[1];
@@ -71,7 +72,11 @@ int main(int argc, char * argv[]) {
     // center + crop
     cv::resize(source_image(cv::Rect(delta_width, delta_height, square_dim, square_dim)), resized_image, cv::Size(input_width, input_height));
     
-    memcpy(interpreter->typed_input_tensor<unsigned char>(0), resized_image.data, resized_image.total() * resized_image.elemSize());
+    // the model uses float inputs
+    cv::Mat resized_image_float;
+    resized_image.convertTo(resized_image_float, CV_32FC3, 1.0 / 255.0);
+
+    memcpy(interpreter->typed_input_tensor<float>(0), resized_image_float.data, resized_image_float.total() * resized_image_float.elemSize());
     
     // inference
     std::chrono::steady_clock::time_point start, end;
@@ -93,9 +98,9 @@ int main(int argc, char * argv[]) {
     int type = interpreter->tensor(output)->type;
     auto labels = read_labels(labels_file);
     
-    tflite::label_image::get_top_n<uint8_t>(interpreter->typed_output_tensor<uint8_t>(0), output_size, 1, threshold, &top_results, kTfLiteUInt8);
+    tflite::label_image::get_top_n<float>(interpreter->typed_output_tensor<float>(0), output_size, 1, threshold, &top_results, kTfLiteFloat32);
     
-    uint8_t* results = interpreter->typed_output_tensor<uint8_t>(0);
+    float* results = interpreter->typed_output_tensor<float>(0);
 
     std::cout << "time to process: " << processing_time << "ms" << std::endl;
 
