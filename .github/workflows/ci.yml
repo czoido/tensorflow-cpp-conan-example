@@ -25,24 +25,20 @@ jobs:
 
       - name: Configure Conan
         run: |
-          pip install "conan<2.0" --upgrade
-          conan config init --force
-          conan config set general.revisions_enabled=1
-          conan profile update settings.compiler.libcxx=libstdc++11 default
-          conan config install https://github.com/conan-io/conanclientcert.git
+          pip install conan
           conan --version
-          conan config home
+          conan profile detect          
           conan remote add default-conan-local https://carloszoido.jfrog.io/artifactory/api/conan/default-conan-local
-          conan user ${{ secrets.RT_USERNAME }} -p=${{ secrets.RT_TOKEN }} -r=default-conan-local
+          conan remote login default-conan-local ${{ secrets.RT_USERNAME }} -p=${{ secrets.RT_TOKEN }}
       - name: Build the package and run test_package
         run: |
-          conan create . -pr:b=default -pr:h=default --build=missing -c tools.system.package_manager:mode=install -c tools.system.package_manager:sudo=True
+          conan create . --build=missing -c tools.system.package_manager:mode=install -c tools.system.package_manager:sudo=True -o opencv/*:with_ffmpeg=False -o opencv/*:with_gtk=False
           conan upload "*" -r=default-conan-local --all -c
       - name: Build the project locally
         run: |
           mkdir build
           cd build
-          conan install .. -s build_type=Release -pr:b=default -pr:h=default --build=missing -c tools.system.package_manager:mode=install -c tools.system.package_manager:sudo=True
-          cmake .. -DCMAKE_TOOLCHAIN_FILE=Release/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+          conan install .. -s build_type=Release --build=missing -c tools.system.package_manager:mode=install -c tools.system.package_manager:sudo=True -o opencv/*:with_ffmpeg=False -o opencv/*:with_gtk=False
+          cmake .. -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=/home/tests/build/Release/generators/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release
           make
           ./tflite-example mobilenet_v1_1.0_224_quant.tflite labels_mobilenet_quant_v1_224.txt frog.png 0

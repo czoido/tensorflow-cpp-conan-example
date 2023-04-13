@@ -17,8 +17,6 @@ install(TARGETS tflite-example DESTINATION "."
 
 file(GLOB ASSETS "${CMAKE_CURRENT_SOURCE_DIR}/assets/*.*")
 
-message("--->${ASSETS} -- ${CMAKE_CURRENT_SOURCE_DIR}")
-
 foreach(asset ${ASSETS})
         add_custom_command(TARGET tflite-example POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
