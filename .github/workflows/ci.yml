@@ -31,7 +31,7 @@ jobs:
       - name: Build the package and run test_package
         run: |
           conan create . --build=missing -c tools.system.package_manager:mode=install -c tools.system.package_manager:sudo=True -o opencv/*:with_ffmpeg=False -o opencv/*:with_gtk=False
-          conan upload "*" -r=default-conan-local --all -c
+          conan upload "*" -r=default-conan-local -c
       - name: Build the project locally
         run: |
           mkdir build
