@@ -1,5 +1,7 @@
 # Create with Conan
 
+Better use with Conan 2.0
+
 ```
 conan create .
 ```
