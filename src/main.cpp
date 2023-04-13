@@ -32,6 +32,8 @@ std::vector<std::string> read_labels(std::string labels_file) {
 }
 
 int main(int argc, char * argv[]) {
+
+    // model from https://tfhub.dev/
     std::string model_file = (argc<4) ? "mobilenet_v1_1.0_224_quant.tflite" : std::string(argv[1]);
     std::string labels_file = (argc<4) ? "labels_mobilenet_quant_v1_224.txt" : std::string(argv[2]);
     std::string image_file = (argc<4) ? "frog.png" : std::string(argv[3]);
