@@ -34,10 +34,15 @@ std::vector<std::string> read_labels(std::string labels_file) {
 int main(int argc, char * argv[]) {
 
     // model from https://tfhub.dev/
-    std::string model_file = (argc<4) ? "mobilenet_v1_1.0_224_quant.tflite" : std::string(argv[1]);
-    std::string labels_file = (argc<4) ? "labels_mobilenet_quant_v1_224.txt" : std::string(argv[2]);
-    std::string image_file = (argc<4) ? "frog.png" : std::string(argv[3]);
-    bool show_image = (argc==5 && std::string(argv[4])=="0") ? false : true;
+    // A convolutional neural network model that runs on RGB images and predicts human
+    // joint locations of a single person. The model is designed to be run in the browser
+    // using Tensorflow.js or on devices using TF Lite in real-time, targeting
+    // movement/fitness activities. This variant: MoveNet.SinglePose.Thunder is a higher
+    // capacity model (compared to MoveNet.SinglePose.Lightning) that performs better
+    // prediction quality while still achieving real-time (>30FPS) speed. Naturally,
+    // thunder will lag behind the lightning, but it will pack a punch.
+
+    std::string model_file = (argc>1) ? "lite-model_movenet_singlepose_thunder_tflite_float16_4.tflite" : std::string(argv[1]);
 
     auto model = tflite::FlatBufferModel::BuildFromFile(model_file.c_str());
 
