@@ -3,7 +3,6 @@
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/optional_debug_tools.h>
 #include <tensorflow/lite/string_util.h>
-#include <tensorflow/lite/examples/label_image/get_top_n.h>
 
 #include <opencv2/videoio.hpp>
 #include <opencv2/imgproc.hpp>
@@ -13,22 +12,52 @@
 #include <fstream>
 #include <memory>
 
+const int num_keypoints = 17;
+const float confidence_threshold = 0.2;
 
-std::vector<std::string> read_labels(std::string labels_file) {
-    std::ifstream file(labels_file.c_str());
-    if (!file.is_open()) {
-        std::cerr << "Can't read labels file: " << labels_file << std::endl;
-        exit(-1);
+const std::vector<std::pair<int, int>> connections = {
+    {0, 1}, {0, 2}, {1, 3}, {2, 4},
+    {5, 6}, {5, 7}, {7, 9}, {6, 8},
+    {8, 10}, {5, 11}, {6, 12}, {11, 12},
+    {11, 13}, {13, 15}, {12, 14}, {14, 16}};
+
+void draw_keypoints(cv::Mat& resized_image, float* output) {
+    // Asume que la imagen ya ha sido redimensionada a square_dim x square_dim
+    int square_dim = resized_image.rows;
+
+    // Itera sobre todos los puntos clave
+    for (int i = 0; i < num_keypoints; ++i) {
+        float y = output[i * 3];
+        float x = output[i * 3 + 1];
+        float conf = output[i * 3 + 2];
+
+        // Si la confianza del punto clave es mayor que el umbral, dibuja el punto clave
+        if (conf > confidence_threshold) {
+            int img_x = static_cast<int>(x * square_dim);
+            int img_y = static_cast<int>(y * square_dim);
+            cv::circle(resized_image, cv::Point(img_x, img_y), 3, cv::Scalar(0, 255, 0), -1);
+        }
     }
 
-    std::vector<std::string> labels;
+    // Itera sobre todas las conexiones y dibuja las líneas del esqueleto
+    for (const auto& connection : connections) {
+        int index1 = connection.first;
+        int index2 = connection.second;
+        float y1 = output[index1 * 3];
+        float x1 = output[index1 * 3 + 1];
+        float conf1 = output[index1 * 3 + 2];
+        float y2 = output[index2 * 3];
+        float x2 = output[index2 * 3 + 1];
+        float conf2 = output[index2 * 3 + 2];
 
-    std::string label;
-    while (std::getline(file, label)) {
-        labels.push_back(label);
+        if (conf1 > confidence_threshold && conf2 > confidence_threshold) {
+            int img_x1 = static_cast<int>(x1 * square_dim);
+            int img_y1 = static_cast<int>(y1 * square_dim);
+            int img_x2 = static_cast<int>(x2 * square_dim);
+            int img_y2 = static_cast<int>(y2 * square_dim);
+            cv::line(resized_image, cv::Point(img_x1, img_y1), cv::Point(img_x2, img_y2), cv::Scalar(255, 0, 0), 2);
+        }
     }
-    file.close();
-    return labels;
 }
 
 int main(int argc, char * argv[]) {
@@ -42,7 +71,11 @@ int main(int argc, char * argv[]) {
     // prediction quality while still achieving real-time (>30FPS) speed. Naturally,
     // thunder will lag behind the lightning, but it will pack a punch.
 
-    std::string model_file = (argc>1) ? "lite-model_movenet_singlepose_thunder_tflite_float16_4.tflite" : std::string(argv[1]);
+    std::cout << argc << std::endl;
+    std::string model_file = (argc<3) ? "lite-model_movenet_singlepose_lightning_tflite_float16_4.tflite" : std::string(argv[1]);
+
+    // Video by Olia Danilevich from https://www.pexels.com/
+    std::string video_file = (argc<3) ? "dancing.mp4" : std::string(argv[2]);
 
     auto model = tflite::FlatBufferModel::BuildFromFile(model_file.c_str());
 
@@ -58,68 +91,70 @@ int main(int argc, char * argv[]) {
         throw std::runtime_error("Failed to allocate tensors");
     }
 
-    //tflite::PrintInterpreterState(interpreter.get());
+    tflite::PrintInterpreterState(interpreter.get());
 
     auto input = interpreter->inputs()[0];
     auto input_height = interpreter->tensor(input)->dims->data[1];
     auto input_width = interpreter->tensor(input)->dims->data[2];
     auto input_channels = interpreter->tensor(input)->dims->data[3];
 
-    cv::Mat source_image = cv::imread(image_file);
-    int image_width = source_image.size().width;
-    int image_height = source_image.size().height;
+    cv::VideoCapture video(video_file);
 
-    int square_dim = std::min(image_width, image_height);
-    int delta_height = (image_height - square_dim) / 2;
-    int delta_width = (image_width - square_dim) / 2;
-
-    cv::Mat resized_image;
-
-    // center + crop
-    cv::resize(source_image(cv::Rect(delta_width, delta_height, square_dim, square_dim)), resized_image, cv::Size(input_width, input_height));
-    
-    memcpy(interpreter->typed_input_tensor<unsigned char>(0), resized_image.data, resized_image.total() * resized_image.elemSize());
-    
-    // inference
-    std::chrono::steady_clock::time_point start, end;
-    start = std::chrono::steady_clock::now();
-    if (interpreter->Invoke() != kTfLiteOk) {
-        std::cerr << "Inference failed" << std::endl;
+    if (!video.isOpened()) {
+        std::cout << "Can't open the video: " << video_file << std::endl;
         return -1;
-    }    
-    end = std::chrono::steady_clock::now();
-    auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-    // interpret output
-    int output = interpreter->outputs()[0];
-    TfLiteIntArray *output_dims = interpreter->tensor(output)->dims;
-    auto output_size = output_dims->data[output_dims->size - 1];
-    std::vector<std::pair<float, int>> top_results;
-    float threshold = 0.3f;
-
-    int type = interpreter->tensor(output)->type;
-    auto labels = read_labels(labels_file);
-    
-    tflite::label_image::get_top_n<uint8_t>(interpreter->typed_output_tensor<uint8_t>(0), output_size, 1, threshold, &top_results, kTfLiteUInt8);
-    
-    uint8_t* results = interpreter->typed_output_tensor<uint8_t>(0);
-
-    std::cout << "time to process: " << processing_time << "ms" << std::endl;
-
-    for (const auto &result : top_results)
-    {
-        const float confidence = result.first;
-        const int index = result.second;
-        std::cout << "------------------" << std::endl;
-        std::cout << "detected:" + labels[index] <<  " with confidence: " << confidence << std::endl;
-        std::cout << "------------------" << std::endl;
-        cv::putText(source_image, labels[index], cv::Point(10, source_image.rows/8), cv::FONT_HERSHEY_SIMPLEX, 0.95, CV_RGB(255, 0, 255), 2);
     }
-    
-    if (show_image) {
-        imshow("Display window", source_image);
-        cv::waitKey(0);
+
+    cv::Mat frame;
+
+    while (true) {
+
+        video >> frame;
+
+        if (frame.empty()) {
+            video.set(cv::CAP_PROP_POS_FRAMES, 0);
+            continue;
+        }
+
+        int image_width = frame.size().width;
+        int image_height = frame.size().height;
+
+        int square_dim = std::min(image_width, image_height);
+        int delta_height = (image_height - square_dim) / 2;
+        int delta_width = (image_width - square_dim) / 2;
+
+        cv::Mat resized_image;
+
+        // center + crop
+        cv::resize(frame(cv::Rect(delta_width, delta_height, square_dim, square_dim)), resized_image, cv::Size(input_width, input_height));
+        
+        memcpy(interpreter->typed_input_tensor<unsigned char>(0), resized_image.data, resized_image.total() * resized_image.elemSize());
+        
+        // inference
+        std::chrono::steady_clock::time_point start, end;
+        start = std::chrono::steady_clock::now();
+        if (interpreter->Invoke() != kTfLiteOk) {
+            std::cerr << "Inference failed" << std::endl;
+            return -1;
+        }    
+        end = std::chrono::steady_clock::now();
+        auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        
+        std::cout << "ms" << "--->" << processing_time << std::endl;
+        
+        float* results = interpreter->typed_output_tensor<float>(0);
+
+        draw_keypoints(resized_image, results);
+
+        imshow("Output", resized_image);
+
+        if (cv::waitKey(10) >= 0) {
+            break;
+        }
     }
+
+    video.release();
+    cv::destroyAllWindows();
 
     return 0;
 }
