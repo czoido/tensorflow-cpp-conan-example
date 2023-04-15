@@ -15,32 +15,41 @@
 const int num_keypoints = 17;
 const float confidence_threshold = 0.2;
 
-const std::vector<std::pair<int, int>> connections = {
-    {0, 1}, {0, 2}, {1, 3}, {2, 4},
-    {5, 6}, {5, 7}, {7, 9}, {6, 8},
-    {8, 10}, {5, 11}, {6, 12}, {11, 12},
-    {11, 13}, {13, 15}, {12, 14}, {14, 16}};
+// The Output is a float32 tensor of shape [1, 1, 17, 3].
 
-void draw_keypoints(cv::Mat& resized_image, float* output) {
-    // Asume que la imagen ya ha sido redimensionada a square_dim x square_dim
+// The first two channels of the last dimension represents the yx coordinates (normalized
+// to image frame, i.e. range in [0.0, 1.0]) of the 17 keypoints (in the order of: [nose,
+// left eye, right eye, left ear, right ear, left shoulder, right shoulder, left elbow,
+// right elbow, left wrist, right wrist, left hip, right hip, left knee, right knee, left
+// ankle, right ankle]).
+
+// The third channel of the last dimension represents the prediction confidence scores of
+// each keypoint, also in the range [0.0, 1.0].
+
+const std::vector<std::pair<int, int>> connections = {
+    {0, 1}, {0, 2}, {1, 3}, {2, 4}, {5, 6}, {5, 7}, {7, 9}, {6, 8}, {8, 10}, {5, 11}, {6, 12}, {11, 12}, {11, 13}, {13, 15}, {12, 14}, {14, 16}};
+
+void draw_keypoints(cv::Mat &resized_image, float *output)
+{
     int square_dim = resized_image.rows;
 
-    // Itera sobre todos los puntos clave
-    for (int i = 0; i < num_keypoints; ++i) {
+    for (int i = 0; i < num_keypoints; ++i)
+    {
         float y = output[i * 3];
         float x = output[i * 3 + 1];
         float conf = output[i * 3 + 2];
 
-        // Si la confianza del punto clave es mayor que el umbral, dibuja el punto clave
-        if (conf > confidence_threshold) {
+        if (conf > confidence_threshold)
+        {
             int img_x = static_cast<int>(x * square_dim);
             int img_y = static_cast<int>(y * square_dim);
             cv::circle(resized_image, cv::Point(img_x, img_y), 3, cv::Scalar(0, 255, 0), -1);
         }
     }
 
-    // Itera sobre todas las conexiones y dibuja las líneas del esqueleto
-    for (const auto& connection : connections) {
+    // draw skeleton
+    for (const auto &connection : connections)
+    {
         int index1 = connection.first;
         int index2 = connection.second;
         float y1 = output[index1 * 3];
@@ -50,7 +59,8 @@ void draw_keypoints(cv::Mat& resized_image, float* output) {
         float x2 = output[index2 * 3 + 1];
         float conf2 = output[index2 * 3 + 2];
 
-        if (conf1 > confidence_threshold && conf2 > confidence_threshold) {
+        if (conf1 > confidence_threshold && conf2 > confidence_threshold)
+        {
             int img_x1 = static_cast<int>(x1 * square_dim);
             int img_y1 = static_cast<int>(y1 * square_dim);
             int img_x2 = static_cast<int>(x2 * square_dim);
@@ -60,26 +70,27 @@ void draw_keypoints(cv::Mat& resized_image, float* output) {
     }
 }
 
-int main(int argc, char * argv[]) {
+int main(int argc, char *argv[])
+{
 
-    // model from https://tfhub.dev/
+    // model from https://tfhub.dev/google/lite-model/movenet/singlepose/lightning/tflite/float16/4
     // A convolutional neural network model that runs on RGB images and predicts human
     // joint locations of a single person. The model is designed to be run in the browser
     // using Tensorflow.js or on devices using TF Lite in real-time, targeting
-    // movement/fitness activities. This variant: MoveNet.SinglePose.Thunder is a higher
-    // capacity model (compared to MoveNet.SinglePose.Lightning) that performs better
-    // prediction quality while still achieving real-time (>30FPS) speed. Naturally,
-    // thunder will lag behind the lightning, but it will pack a punch.
+    // movement/fitness activities. This variant: MoveNet.SinglePose.Lightning is a lower
+    // capacity model (compared to MoveNet.SinglePose.Thunder) that can run >50FPS on most
+    // modern laptops while achieving good performance.
 
     std::cout << argc << std::endl;
-    std::string model_file = (argc<3) ? "lite-model_movenet_singlepose_lightning_tflite_float16_4.tflite" : std::string(argv[1]);
+    std::string model_file = (argc < 3) ? "lite-model_movenet_singlepose_lightning_tflite_float16_4.tflite" : std::string(argv[1]);
 
     // Video by Olia Danilevich from https://www.pexels.com/
-    std::string video_file = (argc<3) ? "dancing.mp4" : std::string(argv[2]);
+    std::string video_file = (argc < 3) ? "dancing.mp4" : std::string(argv[2]);
 
     auto model = tflite::FlatBufferModel::BuildFromFile(model_file.c_str());
 
-    if (!model) {
+    if (!model)
+    {
         throw std::runtime_error("Failed to load TFLite model");
     }
 
@@ -87,7 +98,8 @@ int main(int argc, char * argv[]) {
     std::unique_ptr<tflite::Interpreter> interpreter;
     tflite::InterpreterBuilder(*model, op_resolver)(&interpreter);
 
-    if (interpreter->AllocateTensors() != kTfLiteOk) {
+    if (interpreter->AllocateTensors() != kTfLiteOk)
+    {
         throw std::runtime_error("Failed to allocate tensors");
     }
 
@@ -100,18 +112,21 @@ int main(int argc, char * argv[]) {
 
     cv::VideoCapture video(video_file);
 
-    if (!video.isOpened()) {
+    if (!video.isOpened())
+    {
         std::cout << "Can't open the video: " << video_file << std::endl;
         return -1;
     }
 
     cv::Mat frame;
 
-    while (true) {
+    while (true)
+    {
 
         video >> frame;
 
-        if (frame.empty()) {
+        if (frame.empty())
+        {
             video.set(cv::CAP_PROP_POS_FRAMES, 0);
             continue;
         }
@@ -127,28 +142,31 @@ int main(int argc, char * argv[]) {
 
         // center + crop
         cv::resize(frame(cv::Rect(delta_width, delta_height, square_dim, square_dim)), resized_image, cv::Size(input_width, input_height));
-        
+
         memcpy(interpreter->typed_input_tensor<unsigned char>(0), resized_image.data, resized_image.total() * resized_image.elemSize());
-        
+
         // inference
         std::chrono::steady_clock::time_point start, end;
         start = std::chrono::steady_clock::now();
-        if (interpreter->Invoke() != kTfLiteOk) {
+        if (interpreter->Invoke() != kTfLiteOk)
+        {
             std::cerr << "Inference failed" << std::endl;
             return -1;
-        }    
+        }
         end = std::chrono::steady_clock::now();
         auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        
-        std::cout << "ms" << "--->" << processing_time << std::endl;
-        
-        float* results = interpreter->typed_output_tensor<float>(0);
+
+        std::cout << "ms"
+                  << "--->" << processing_time << std::endl;
+
+        float *results = interpreter->typed_output_tensor<float>(0);
 
         draw_keypoints(resized_image, results);
 
         imshow("Output", resized_image);
 
-        if (cv::waitKey(10) >= 0) {
+        if (cv::waitKey(10) >= 0)
+        {
             break;
         }
     }
