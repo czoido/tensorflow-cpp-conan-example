@@ -1,10 +1,13 @@
-# Create with Conan
+# Image pose detection using Conan and tensorflow-lite
 
-Better use with Conan 2.0
+Tested with Conan 2.0
 
 ```
 conan create .
 ```
+
+![Ejemplo de GIF](assets/output.gif)
+
 
 # Run locally with Xcode
 
