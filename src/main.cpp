@@ -110,6 +110,7 @@ int main(int argc, char *argv[])
 
         cv::namedWindow("Output Image", cv::WINDOW_AUTOSIZE);
         cv::imshow("Output Image", normalized_image);
+        cv::imshow("Input Image", resized_image);
 
 
         if (cv::waitKey(10) >= 0)
