@@ -1,4 +1,4 @@
-# Image pose detection using Conan and tensorflow-lite
+# Image depth from monocular image using Conan and tensorflow-lite
 
 Tested with Conan 2.0
 
