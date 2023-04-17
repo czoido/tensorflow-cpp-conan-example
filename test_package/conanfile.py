@@ -19,5 +19,5 @@ class tflite_exampleTestConan(ConanFile):
     def test(self):
         if can_run(self):
             model_path = os.path.join(self.source_folder, "../assets", "lite-model_movenet_singlepose_lightning_tflite_float16_4.tflite")
-            labels_path = os.path.join(self.source_folder, "../assets", "dancing.mov")
-            self.run(f"tflite-example {model_path} {labels_path} 0", env="conanrun")
+            input_video = os.path.join(self.source_folder, "../assets", "dancing.mov")
+            self.run(f"tflite-example {model_path} {input_video} 0", env="conanrun")
