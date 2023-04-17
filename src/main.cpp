@@ -85,7 +85,9 @@ int main(int argc, char *argv[])
     std::string model_file = (argc < 3) ? "lite-model_movenet_singlepose_lightning_tflite_float16_4.tflite" : std::string(argv[1]);
 
     // Video by Olia Danilevich from https://www.pexels.com/
-    std::string video_file = (argc < 3) ? "dancing.mp4" : std::string(argv[2]);
+    std::string video_file = (argc < 3) ? "dancing.mov" : std::string(argv[2]);
+
+    bool show_output = (argc==4 && std::string(argv[3])=="0") ? false : true;
 
     auto model = tflite::FlatBufferModel::BuildFromFile(model_file.c_str());
 
@@ -163,7 +165,9 @@ int main(int argc, char *argv[])
 
         draw_keypoints(resized_image, results);
 
-        imshow("Output", resized_image);
+        if (show_output) {
+            imshow("Output", resized_image);
+        }
 
         if (cv::waitKey(10) >= 0)
         {
